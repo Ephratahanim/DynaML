@@ -21,6 +21,7 @@ package io.github.mandar2812.dynaml.models.neuralnets
 import scala.collection.mutable.{MutableList => ML}
 import akka.actor.{Actor, ActorPath, ActorRef, ActorSystem, Props}
 import akka.event.Logging
+import io.github.mandar2812.dynaml.models.Model
 import io.github.mandar2812.dynaml.models.neuralnets.utils.{BatchSignal, Signal, UnitSignal}
 
 /**
@@ -103,9 +104,14 @@ class PerceptronActor(act: String = TransferFunctions.SIGMOID) extends Actor {
   }
 }
 
+object PerceptronActor {
+  def apply(activation: String)(implicit actorSystem: ActorSystem) =
+    actorSystem.actorOf(Props(classOf[PerceptronActor], activation))
+}
+
 class InputActor(outerActor: ActorRef) extends PerceptronActor {
 
-  //Input Neurons serve only as sensors from outside world
+  //Input Neurons serve only as sensors from outside world/actors
   activation = TransferFunctions.LIN
 
   private val incomingConnection = Synapse.Incoming(outerActor)
@@ -118,7 +124,7 @@ class InputActor(outerActor: ActorRef) extends PerceptronActor {
 
 class OutputActor(outerActor: ActorRef) extends PerceptronActor {
 
-  //Output neurons serve only as emitters to outside world
+  //Output neurons serve only as emitters to outside world/actors
   private val outgoingConnection = Synapse.Outgoing(outerActor)
   outgoingConnection.w_(1.0)
 
@@ -137,24 +143,31 @@ class InputLayer(nodes: ML[ActorRef]) extends PerceptronLayer(nodes)
 class OutputLayer(nodes: ML[ActorRef]) extends PerceptronLayer(nodes)
 
 
-object PerceptronFactory {
+object NeuralFactory {
 
-  val actorSys = ActorSystem.create("Neuron-System-Root")
-
-  def layer(activations: List[String]) = {
+  def layer(activations: List[String])(implicit actorSys: ActorSystem) = {
     // Create a set of perceptron actors and enclose them
     // in a layer
     new PerceptronLayer(ML(activations:_*).map(ac => {
       //Create a new Perceptron Actor
-      actorSys.actorOf(Props(classOf[PerceptronActor], ac))
+      PerceptronActor(ac)
     }))
   }
 }
 
-abstract class PerceptronNetwork {
+abstract class PerceptronNetwork[T, Q, R] extends Model[T, Q, R] {
 
   val inputLayer: InputLayer
 
+  val hiddenLayers: ML[PerceptronLayer]
+
   val outputLayer: OutputLayer
 
+  /**
+    * Predict the value of the
+    * target variable given a
+    * point.
+    *
+    **/
+  //override def predict(point: Q): R = _
 }
